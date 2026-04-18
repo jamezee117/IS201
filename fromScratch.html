@@ -128,26 +128,31 @@
         <a href="#top">Return to Top</a>
     </div>
 
-    <!-- WORKING CAROUSEL JAVASCRIPT -->
-    <script>
-        const carouselImage = document.getElementById("carousel-image");
-        const imageContainer = document.getElementById("carousel-images");
-        const images = Array.from(imageContainer.getElementsByTagName("img"));
+<script>
+window.onload = function () {
+    const carouselImage = document.getElementById("carousel-image");
+    const imageContainer = document.getElementById("carousel-images");
+    const images = Array.from(imageContainer.getElementsByTagName("img"));
 
-        let index = 0;
+    // Sync the first visible image with the first hidden image
+    carouselImage.src = images[0].src;
 
-        document.getElementById("arrow-left").onclick = function () {
-            index--;
-            if (index < 0) index = images.length - 1;
-            carouselImage.src = images[index].src;
-        };
+    let index = 0;
 
-        document.getElementById("arrow-right").onclick = function () {
-            index++;
-            if (index >= images.length) index = 0;
-            carouselImage.src = images[index].src;
-        };
-    </script>
+    document.getElementById("arrow-left").onclick = function () {
+        index--;
+        if (index < 0) index = images.length - 1;
+        carouselImage.src = images[index].src;
+    };
+
+    document.getElementById("arrow-right").onclick = function () {
+        index++;
+        if (index >= images.length) index = 0;
+        carouselImage.src = images[index].src;
+    };
+};
+</script>
+
 
 </body>
 </html>

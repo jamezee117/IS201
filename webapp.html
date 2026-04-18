@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>WebApp</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #222;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    height: 100vh;
+    font-family: Arial, sans-serif;
+    color: #fff;
+    padding-top: 10px;
+  }
+
+  /* TOP NAV BAR */
+  #navbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background: #111;
+    padding: 10px 0;
+    text-align: center;
+    z-index: 1000;
+    border-bottom: 2px solid #444;
+  }
+
+  #navbar a {
+    color: #4c9aff;
+    margin: 0 20px;
+    font-size: 18px;
+    text-decoration: none;
+  }
+
+  /* Layout */
+  #instructions {
+    width: 220px;
+    margin-right: 10px;
+    margin-top: 60px;
+    font-size: 15px;
+    line-height: 1.35;
+  }
+
+  #instructions h2 {
+    margin-bottom: 8px;
+    font-size: 18px;
+    text-decoration: underline;
+  }
+
+  #gameContainer {
+    position: relative;
+    width: 420px;
+    height: 620px;
+    background: linear-gradient(#4c6ef5, #1c1f3b);
+    overflow: hidden;
+    border: 3px solid #fff;
+    border-radius: 8px;
+    margin-top: 60px;
+  }
+
+  #score {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    font-size: 18px;
+    font-weight: bold;
+    z-index: 10;
+  }
+
+  #message {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    font-size: 20px;
+    z-index: 10;
+  }
+
+  canvas { display: block; }
+</style>
+</head>
+<body>
+
+<!-- NAVIGATION BAR -->
+<div id="navbar">
+  <a href="index.html">Résumé</a>
+  <a href="fromScratch.html">From-Scratch</a>
+  <a href="webapp.html">WebApp</a>
+</div>
+
+<!-- INSTRUCTIONS -->
+<div id="instructions">
+    <h1>DOODLE JUMP CLONE</h1>
+  <h2>How to Play</h2>
+  <p>• Press <b>SPACE</b> to start or restart.</p>
+  <p>• Move left with <b>A</b> or <b>←</b>.</p>
+  <p>• Move right with <b>D</b> or <b>→</b>.</p>
+  <p>• The player auto-jumps after starting.</p>
+  <p>• Land on platforms to keep climbing.</p>
+  <p>• Springs (green coils) launch you higher.</p>
+  <p>• Avoid triangular obstacles (red).</p>
+  <p>• If a platform has a spring or obstacle, a safe partner platform appears.</p>
+  <p>• Score increases every 5 seconds.</p>
+</div>
+
+<!-- GAME WINDOW -->
+<div id="gameContainer">
+  <div id="score">Score: 0</div>
+  <div id="message">Press SPACE to start</div>
+  <canvas id="gameCanvas" width="420" height="620"></canvas>
+</div>
+
+<script>
+const canvas = document.getElementById("gameCanvas");
+const ctx = canvas.getContext("2d");
+const scoreEl = document.getElementById("score");
+const messageEl = document.getElementById("message");
+
+const WIDTH = canvas.width;
+const HEIGHT = canvas.height;
+
+// Player
+const player = {
+  x: WIDTH / 2 - 20,
+  y: HEIGHT / 2,
+  width: 40,
+  height: 40,
+  vy: 0,
+  gravity: 0.4,
+  jumpVelocity: -12,
+  springVelocity: -20,
+  moveSpeed: 5
+};
+
+let cameraY = 0;
+let gameStarted = false;
+let gameOver = false;
+
+// Platforms
+const platforms = [];
+const PLATFORM_WIDTH = 80;
+const PLATFORM_HEIGHT = 15;
+const PLATFORM_GAP = 120;
+
+// Score
+let score = 0;
+let startTime = 0;
+
+// Input
+const keys = { left: false, right: false };
+
+// Create platforms with strict rules
+function initPlatforms() {
+  platforms.length = 0;
+
+  // STARTING PLATFORM directly under player
+  platforms.push({
+    x: WIDTH / 2 - PLATFORM_WIDTH / 2,
+    y: player.y + 60,
+    width: PLATFORM_WIDTH,
+    height: PLATFORM_HEIGHT,
+    type: "normal",
+    moving: false,
+    spring: false,
+    obstacle: false
+  });
+
+  let y = player.y - 40;
+
+  while (y > -3000) {
+    const xMain = Math.random() * (WIDTH - PLATFORM_WIDTH);
+
+    const hasSpring = Math.random() < 0.12;
+    const hasObstacle = !hasSpring && Math.random() < 0.12;
+
+    const typeChance = Math.random();
+    let type = "normal";
+    if (typeChance < 0.15) type = "break";
+    else if (typeChance < 0.35) type = "move";
+
+    const mainPlatform = {
+      x: xMain,
+      y,
+      width: PLATFORM_WIDTH,
+      height: PLATFORM_HEIGHT,
+      type,
+      moving: type === "move",
+      dir: Math.random() < 0.5 ? 1 : -1,
+      speed: 1 + Math.random(),
+      spring: hasSpring,
+      obstacle: hasObstacle,
+      obstacleX: xMain + PLATFORM_WIDTH / 2 - 10
+    };
+
+    platforms.push(mainPlatform);
+
+    // SAFE PARTNER PLATFORM
+    if (hasSpring || hasObstacle) {
+      let xSafe;
+      do {
+        xSafe = Math.random() * (WIDTH - PLATFORM_WIDTH);
+      } while (Math.abs(xSafe - xMain) < 70);
+
+      platforms.push({
+        x: xSafe,
+        y,
+        width: PLATFORM_WIDTH,
+        height: PLATFORM_HEIGHT,
+        type: "normal",
+        moving: false,
+        spring: false,
+        obstacle: false
+      });
+    }
+
+    y -= PLATFORM_GAP;
+  }
+}
+
+function resetGame() {
+  gameStarted = false;
+  gameOver = false;
+  score = 0;
+  scoreEl.textContent = "Score: 0";
+  messageEl.textContent = "Press SPACE to start";
+
+  player.x = WIDTH / 2 - 20;
+  player.y = HEIGHT / 2;
+  player.vy = 0;
+  cameraY = 0;
+
+  initPlatforms();
+}
+
+function startGame() {
+  if (!gameStarted) {
+    gameStarted = true;
+    gameOver = false;
+    startTime = performance.now();
+    messageEl.textContent = "";
+  }
+}
+
+function updateScore(timeNow) {
+  if (!gameStarted || gameOver) return;
+  const elapsed = (timeNow - startTime) / 1000;
+  const newScore = Math.floor(elapsed / 5) * 10;
+  if (newScore !== score) {
+    score = newScore;
+    scoreEl.textContent = "Score: " + score;
+  }
+}
+
+function handleInput() {
+  if (keys.left) player.x -= player.moveSpeed;
+  if (keys.right) player.x += player.moveSpeed;
+
+  if (player.x + player.width < 0) player.x = WIDTH;
+  if (player.x > WIDTH) player.x = -player.width;
+}
+
+function updatePhysics() {
+  player.vy += player.gravity;
+  player.y += player.vy;
+
+  // WORLD-SPACE COLLISION
+  if (player.vy > 0) {
+    for (let p of platforms) {
+      if (
+        player.x < p.x + p.width &&
+        player.x + player.width > p.x &&
+        player.y + player.height > p.y &&
+        player.y + player.height < p.y + p.height + player.vy + 5
+      ) {
+        if (p.spring) player.vy = player.springVelocity;
+        else player.vy = player.jumpVelocity;
+
+        player.y = p.y - player.height;
+
+        if (p.type === "break") p.y = 99999;
+      }
+    }
+  }
+
+  // Move platforms + obstacles
+  for (let p of platforms) {
+    if (p.moving) {
+      p.x += p.dir * p.speed;
+      if (p.x < 0 || p.x + p.width > WIDTH) p.dir *= -1;
+
+      if (p.obstacle) p.obstacleX += p.dir * p.speed;
+    }
+
+    // OBSTACLE COLLISION
+    if (p.obstacle) {
+      const px = player.x + player.width / 2;
+      const py = player.y + player.height / 2;
+
+      const ox = p.obstacleX + 10;
+      const oy = p.y - 15;
+
+      const dist = Math.hypot(px - ox, py - oy);
+
+      if (dist < 25) {
+        gameOver = true;
+        messageEl.textContent = "Hit Obstacle! Press SPACE to restart";
+      }
+    }
+  }
+
+  // Camera follow
+  const targetCameraY = player.y - HEIGHT / 2;
+  cameraY += (targetCameraY - cameraY) * 0.1;
+
+  if (player.y - cameraY > HEIGHT + 100) {
+    gameOver = true;
+    messageEl.textContent = "Game Over - Press SPACE to restart";
+  }
+}
+
+function drawBackground() {
+  const gradient = ctx.createLinearGradient(0, 0, 0, HEIGHT);
+  gradient.addColorStop(0, "#4c6ef5");
+  gradient.addColorStop(1, "#1c1f3b");
+  ctx.fillStyle = gradient;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+}
+
+function drawPlatforms() {
+  for (let p of platforms) {
+    const py = p.y - cameraY;
+
+    // Platform color
+    if (p.type === "normal") ctx.fillStyle = "#fff";
+    else if (p.type === "break") ctx.fillStyle = "#b5651d";
+    else if (p.type === "move") ctx.fillStyle = "#4dd2ff";
+
+    ctx.fillRect(p.x, py, p.width, p.height);
+
+    // Spring (coil)
+    if (p.spring) {
+      ctx.strokeStyle = "#00ff00";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(p.x + p.width/2 - 8, py - 2);
+      ctx.lineTo(p.x + p.width/2 + 8, py - 2);
+      ctx.moveTo(p.x + p.width/2 - 8, py - 8);
+      ctx.lineTo(p.x + p.width/2 + 8, py - 8);
+      ctx.moveTo(p.x + p.width/2 - 8, py - 14);
+      ctx.lineTo(p.x + p.width/2 + 8, py - 14);
+      ctx.stroke();
+    }
+
+    // Obstacle (triangle)
+    if (p.obstacle) {
+      ctx.fillStyle = "#ff3333";
+      const ox = p.obstacleX;
+      ctx.beginPath();
+      ctx.moveTo(ox, py - 5);
+      ctx.lineTo(ox + 20, py - 5);
+      ctx.lineTo(ox + 10, py - 25);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+}
+
+function drawPlayer() {
+  const py = player.y - cameraY;
+  ctx.fillStyle = "#ffdd57";
+  ctx.fillRect(player.x, py, player.width, player.height);
+
+  ctx.fillStyle = "#000";
+  ctx.fillRect(player.x + 10, py + 10, 5, 5);
+  ctx.fillRect(player.x + 25, py + 10, 5, 5);
+  ctx.fillRect(player.x + 15, py + 25, 10, 3);
+}
+
+function gameLoop(timestamp) {
+  ctx.clearRect(0, 0, WIDTH, HEIGHT);
+  drawBackground();
+
+  if (gameStarted && !gameOver) {
+    handleInput();
+    updatePhysics();
+    updateScore(timestamp);
+  }
+
+  drawPlatforms();
+  drawPlayer();
+
+  requestAnimationFrame(gameLoop);
+}
+
+// Input
+window.addEventListener("keydown", (e) => {
+  if (e.code === "Space") {
+    if (gameOver) resetGame();
+    startGame();
+  }
+  if (e.code === "ArrowLeft" || e.code === "KeyA") keys.left = true;
+  if (e.code === "ArrowRight" || e.code === "KeyD") keys.right = true;
+});
+
+window.addEventListener("keyup", (e) => {
+  if (e.code === "ArrowLeft" || e.code === "KeyA") keys.left = false;
+  if (e.code === "ArrowRight" || e.code === "KeyD") keys.right = false;
+});
+
+resetGame();
+requestAnimationFrame(gameLoop);
+</script>
+
+</body>
+</html>
